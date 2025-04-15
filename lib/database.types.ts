@@ -34,7 +34,6 @@ export interface Database {
           first_name: string | null
           last_name: string | null
           phone: string | null
-          balance: number
           created_at: string
           updated_at: string
         }
@@ -45,7 +44,6 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
-          balance?: number
           created_at?: string
           updated_at?: string
         }
@@ -56,7 +54,6 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
-          balance?: number
           created_at?: string
           updated_at?: string
         }
