@@ -20,10 +20,7 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
+      const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false })
 
       if (error) {
         throw error
