@@ -60,6 +60,16 @@ export default function PaymentRequestsPage() {
 
   const handleApprove = async (id: string) => {
     try {
+      // Ödeme talebini al
+      const { data: paymentRequest, error: fetchError } = await supabase
+        .from("payment_requests")
+        .select("*, users(telegram_id)")
+        .eq("id", id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Ödeme talebini güncelle
       const { error } = await supabase
         .from("payment_requests")
         .update({
@@ -71,13 +81,7 @@ export default function PaymentRequestsPage() {
 
       if (error) throw error
 
-      // İlgili siparişi de güncelle
-      const { data: paymentRequest } = await supabase
-        .from("payment_requests")
-        .select("payment_details")
-        .eq("id", id)
-        .single()
-
+      // İlgili siparişi güncelle
       if (paymentRequest && paymentRequest.payment_details) {
         // Ürün adından sipariş ID'sini çıkarmaya çalış
         const orderMatch = paymentRequest.payment_details.match(/Sipariş ID: ([a-f0-9-]+)/i)
@@ -93,6 +97,14 @@ export default function PaymentRequestsPage() {
         }
       }
 
+      // Kullanıcıya Telegram bildirimi gönder
+      if (paymentRequest && paymentRequest.users && paymentRequest.users.telegram_id) {
+        await sendTelegramNotification(
+          paymentRequest.users.telegram_id,
+          `✅ <b>Ödemeniz Onaylandı</b>\n\nÖdeme talebiniz onaylandı ve siparişiniz işleme alındı. Siparişiniz hazırlandıktan sonra kargoya verilecektir.\n\nTeşekkür ederiz!`,
+        )
+      }
+
       alert("Ödeme talebi onaylandı.")
       setAdminNote("")
       setSelectedRequestId(null)
@@ -105,6 +117,16 @@ export default function PaymentRequestsPage() {
 
   const handleReject = async (id: string) => {
     try {
+      // Ödeme talebini al
+      const { data: paymentRequest, error: fetchError } = await supabase
+        .from("payment_requests")
+        .select("*, users(telegram_id)")
+        .eq("id", id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Ödeme talebini güncelle
       const { error } = await supabase
         .from("payment_requests")
         .update({
@@ -116,6 +138,16 @@ export default function PaymentRequestsPage() {
 
       if (error) throw error
 
+      // Kullanıcıya Telegram bildirimi gönder
+      if (paymentRequest && paymentRequest.users && paymentRequest.users.telegram_id) {
+        await sendTelegramNotification(
+          paymentRequest.users.telegram_id,
+          `❌ <b>Ödemeniz Reddedildi</b>\n\nÖdeme talebiniz reddedildi. Detaylı bilgi için lütfen yönetici ile iletişime geçin.\n\n${
+            adminNote ? `Not: ${adminNote}` : ""
+          }`,
+        )
+      }
+
       alert("Ödeme talebi reddedildi.")
       setAdminNote("")
       setSelectedRequestId(null)
@@ -123,6 +155,31 @@ export default function PaymentRequestsPage() {
     } catch (error) {
       console.error("Ödeme talebi reddedilirken hata oluştu:", error)
       alert("Ödeme talebi reddedilirken hata oluştu.")
+    }
+  }
+
+  // Telegram bildirimi gönderme fonksiyonu
+  const sendTelegramNotification = async (chat_id: number, message: string) => {
+    try {
+      const response = await fetch("/api/telegram-notify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chat_id,
+          message,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Bildirim gönderilemedi")
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error("Telegram bildirimi gönderilirken hata:", error)
+      return null
     }
   }
 
