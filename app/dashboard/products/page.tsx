@@ -1,379 +1,277 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import type React from "react"
 
-interface Product {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  stock: number
-  active: boolean
-}
+import { useState, useEffect, useCallback } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/lib/database.types"
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [currentProduct, setCurrentProduct] = useState<Product | null>(null)
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: "",
-    stock: "",
-    active: true,
-  })
-  const supabase = createClient()
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [price, setPrice] = useState("")
+  const [stock, setStock] = useState("")
+  const [active, setActive] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchProducts()
-  }, [])
+  const supabase = createClientComponentClient<Database>()
 
-  async function fetchProducts() {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true)
       const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
 
       setProducts(data || [])
     } catch (error) {
-      console.error("Ürünler yüklenirken hata:", error)
+      console.error("Ürünler yüklenirken hata oluştu:", error)
+      alert("Ürünler yüklenirken hata oluştu.")
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  function resetForm() {
-    setFormData({
-      name: "",
-      description: "",
-      price: "",
-      stock: "",
-      active: true,
-    })
-  }
+  useEffect(() => {
+    fetchProducts()
+  }, [fetchProducts])
 
-  function handleEditProduct(product: Product) {
-    setCurrentProduct(product)
-    setFormData({
-      name: product.name,
-      description: product.description || "",
-      price: product.price.toString(),
-      stock: product.stock.toString(),
-      active: product.active,
-    })
-    setIsEditDialogOpen(true)
-  }
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
 
-  async function handleAddProduct() {
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .insert([
-          {
-            name: formData.name,
-            description: formData.description || null,
-            price: Number.parseFloat(formData.price),
-            stock: Number.parseInt(formData.stock),
-            active: formData.active,
-          },
-        ])
-        .select()
+      const productData = {
+        name,
+        description,
+        price: Number.parseFloat(price),
+        stock: Number.parseInt(stock),
+        active,
+      }
 
-      if (error) throw error
+      let error
 
-      setProducts([...(data || []), ...products])
-      setIsAddDialogOpen(false)
-      resetForm()
+      if (editingId) {
+        // Güncelleme
+        const { error: updateError } = await supabase.from("products").update(productData).eq("id", editingId)
+        error = updateError
+      } else {
+        // Yeni ürün ekleme
+        const { error: insertError } = await supabase.from("products").insert([productData])
+        error = insertError
+      }
+
+      if (error) {
+        throw error
+      }
+
+      // Formu sıfırla
+      setName("")
+      setDescription("")
+      setPrice("")
+      setStock("")
+      setActive(true)
+      setEditingId(null)
+
+      // Ürünleri yeniden yükle
+      fetchProducts()
     } catch (error) {
-      console.error("Ürün eklenirken hata:", error)
+      console.error("Ürün kaydedilirken hata oluştu:", error)
+      alert("Ürün kaydedilirken hata oluştu.")
     }
   }
 
-  async function handleUpdateProduct() {
-    if (!currentProduct) return
-
-    try {
-      const { error } = await supabase
-        .from("products")
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          price: Number.parseFloat(formData.price),
-          stock: Number.parseInt(formData.stock),
-          active: formData.active,
-        })
-        .eq("id", currentProduct.id)
-
-      if (error) throw error
-
-      setProducts(
-        products.map((p) =>
-          p.id === currentProduct.id
-            ? {
-                ...p,
-                name: formData.name,
-                description: formData.description || null,
-                price: Number.parseFloat(formData.price),
-                stock: Number.parseInt(formData.stock),
-                active: formData.active,
-              }
-            : p,
-        ),
-      )
-
-      setIsEditDialogOpen(false)
-      setCurrentProduct(null)
-      resetForm()
-    } catch (error) {
-      console.error("Ürün güncellenirken hata:", error)
-    }
+  function handleEdit(product: any) {
+    setEditingId(product.id)
+    setName(product.name)
+    setDescription(product.description || "")
+    setPrice(product.price.toString())
+    setStock(product.stock.toString())
+    setActive(product.active)
   }
 
-  async function handleDeleteProduct(id: string) {
+  async function handleDelete(id: string) {
+    if (!confirm("Bu ürünü silmek istediğinizden emin misiniz?")) {
+      return
+    }
+
     try {
       const { error } = await supabase.from("products").delete().eq("id", id)
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
 
-      setProducts(products.filter((p) => p.id !== id))
+      // Ürünleri yeniden yükle
+      fetchProducts()
     } catch (error) {
-      console.error("Ürün silinirken hata:", error)
+      console.error("Ürün silinirken hata oluştu:", error)
+      alert("Ürün silinirken hata oluştu.")
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Ürünler</h1>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Yeni Ürün
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Yeni Ürün Ekle</DialogTitle>
-              <DialogDescription>Yeni bir hat ürünü eklemek için aşağıdaki formu doldurun.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Ürün Adı</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">Açıklama</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="price">Fiyat (₺)</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="stock">Stok</Label>
-                  <Input
-                    id="stock"
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="active"
-                  checked={formData.active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
-                />
-                <Label htmlFor="active">Aktif</Label>
-              </div>
+    <div className="p-6">
+      <h1 className="mb-6 text-2xl font-bold">Ürünler</h1>
+
+      <div className="mb-8 rounded-lg border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">{editingId ? "Ürün Düzenle" : "Yeni Ürün Ekle"}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="name" className="mb-1 block text-sm font-medium">
+              Ürün Adı
+            </label>
+            <input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-gray-300 p-2 focus:border-gray-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="description" className="mb-1 block text-sm font-medium">
+              Açıklama
+            </label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border border-gray-300 p-2 focus:border-gray-500 focus:outline-none"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label htmlFor="price" className="mb-1 block text-sm font-medium">
+                Fiyat (₺)
+              </label>
+              <input
+                id="price"
+                type="number"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full rounded-md border border-gray-300 p-2 focus:border-gray-500 focus:outline-none"
+                required
+              />
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+
+            <div>
+              <label htmlFor="stock" className="mb-1 block text-sm font-medium">
+                Stok
+              </label>
+              <input
+                id="stock"
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="w-full rounded-md border border-gray-300 p-2 focus:border-gray-500 focus:outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              id="active"
+              type="checkbox"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <label htmlFor="active" className="ml-2 block text-sm font-medium">
+              Aktif
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none"
+            >
+              {editingId ? "Güncelle" : "Ekle"}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setName("")
+                  setDescription("")
+                  setPrice("")
+                  setStock("")
+                  setActive(true)
+                }}
+                className="rounded-md bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300 focus:outline-none"
+              >
                 İptal
-              </Button>
-              <Button onClick={handleAddProduct}>Ekle</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </button>
+            )}
+          </div>
+        </form>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">Ürünler yükleniyor...</div>
-      ) : (
-        <div className="border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ürün Adı</TableHead>
-                <TableHead>Fiyat</TableHead>
-                <TableHead>Stok</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="text-right">İşlemler</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.length > 0 ? (
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto">
+            <thead className="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+              <tr>
+                <th className="px-6 py-3 text-left">Ürün Adı</th>
+                <th className="px-6 py-3 text-left">Fiyat</th>
+                <th className="px-6 py-3 text-left">Stok</th>
+                <th className="px-6 py-3 text-left">Durum</th>
+                <th className="px-6 py-3 text-right">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center">
+                    Yükleniyor...
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center">
+                    Henüz ürün bulunmuyor.
+                  </td>
+                </tr>
+              ) : (
                 products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>₺{product.price.toFixed(2)}</TableCell>
-                    <TableCell>{product.stock}</TableCell>
-                    <TableCell>
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">{product.name}</td>
+                    <td className="px-6 py-4">₺{product.price.toFixed(2)}</td>
+                    <td className="px-6 py-4">{product.stock}</td>
+                    <td className="px-6 py-4">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs ${product.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                          product.active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}
                       >
                         {product.active ? "Aktif" : "Pasif"}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="icon" onClick={() => handleEditProduct(product)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Ürünü Sil</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Bu ürünü silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>İptal</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteProduct(product.id)}>Sil</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button onClick={() => handleEdit(product)} className="mr-2 text-blue-600 hover:text-blue-800">
+                        Düzenle
+                      </button>
+                      <button onClick={() => handleDelete(product.id)} className="text-red-600 hover:text-red-800">
+                        Sil
+                      </button>
+                    </td>
+                  </tr>
                 ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Henüz ürün bulunmuyor
-                  </TableCell>
-                </TableRow>
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
-      )}
-
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ürün Düzenle</DialogTitle>
-            <DialogDescription>Ürün bilgilerini güncelleyin.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Ürün Adı</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-description">Açıklama</Label>
-              <Textarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-price">Fiyat (₺)</Label>
-                <Input
-                  id="edit-price"
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-stock">Stok</Label>
-                <Input
-                  id="edit-stock"
-                  type="number"
-                  value={formData.stock}
-                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-active"
-                checked={formData.active}
-                onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
-              />
-              <Label htmlFor="edit-active">Aktif</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              İptal
-            </Button>
-            <Button onClick={handleUpdateProduct}>Güncelle</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </div>
     </div>
   )
 }

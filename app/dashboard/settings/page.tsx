@@ -1,9 +1,8 @@
 "use client"
+import { toast } from "sonner"
 
-import { useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { toast } from "sonner" // Sonner'dan toast'u import ediyoruz
-
+// Kullanılmayan arayüzü yorum satırına alabilirsiniz
+/* 
 interface PaymentSetting {
   id: string
   type: string
@@ -11,17 +10,19 @@ interface PaymentSetting {
   account_name: string | null
   active: boolean
 }
+*/
 
 export default function SettingsPage() {
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([])
-  const [loading, setLoading] = useState(true)
-  const [type, setType] = useState("")
-  const [account, setAccount] = useState("")
-  const [accountName, setAccountName] = useState("")
-  const [active, setActive] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  // Kullanılmayan state'leri kaldırın
+  // const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([])
+  // const [loading, setLoading] = useState(true)
+  // const [type, setType] = useState("")
+  // const [account, setAccount] = useState("")
+  // const [accountName, setAccountName] = useState("")
+  // const [active, setActive] = useState(true)
+  // const [editingId, setEditingId] = useState<string | null>(null)
 
-  const supabase = createClientComponentClient()
+  // const supabase = createClientComponentClient()
 
   // Örnek bir fonksiyon
   const handleSave = async () => {

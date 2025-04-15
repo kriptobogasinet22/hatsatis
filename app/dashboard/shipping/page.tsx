@@ -51,7 +51,7 @@ export default function ShippingPage() {
 
   useEffect(() => {
     fetchOrders()
-  }, [])
+  }, [fetchOrders])
 
   async function fetchOrders() {
     try {
