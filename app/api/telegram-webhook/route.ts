@@ -39,8 +39,7 @@ async function sendMessage(chat_id: number, text: string, reply_markup?: any) {
 const mainMenuKeyboard = {
   keyboard: [
     [{ text: "🛒 Ürünler" }, { text: "🛍️ Sepetim" }],
-    [{ text: "📦 Siparişlerim" }, { text: "💰 Bakiyem" }],
-    [{ text: "❓ Yardım" }],
+    [{ text: "📦 Siparişlerim" }, { text: "❓ Yardım" }],
   ],
   resize_keyboard: true,
 }
@@ -87,7 +86,6 @@ async function registerUser(supabase: any, telegramUser: any) {
         username: telegramUser.username || null,
         first_name: telegramUser.first_name || null,
         last_name: telegramUser.last_name || null,
-        balance: 0,
       })
       .select()
       .single()
@@ -176,6 +174,30 @@ async function showPaymentMethods(supabase: any, chat_id: number, product_id: st
     return
   }
 
+  // Kullanıcı durumunu güncelle - adres isteme aşamasına geç
+  userStates[chat_id] = {
+    state: "waiting_for_address",
+    data: { product_id: product.id, product_name: product.name, price: product.price },
+  }
+
+  await sendMessage(
+    chat_id,
+    `<b>${product.name}</b> ürününü satın almak için lütfen teslimat adresinizi yazın:\n\nTutar: ${product.price} ₺`,
+    {
+      inline_keyboard: [[{ text: "◀️ İptal", callback_data: `product:${product_id}` }]],
+    },
+  )
+}
+
+// Ödeme yöntemlerini gösterme (adres alındıktan sonra)
+async function showPaymentMethodsAfterAddress(supabase: any, chat_id: number, address: string) {
+  // Kullanıcı durumunu kontrol et
+  const userState = userStates[chat_id]
+  if (!userState || userState.state !== "waiting_for_address" || !userState.data) {
+    await sendMessage(chat_id, "Bir hata oluştu. Lütfen tekrar ürün seçin.")
+    return
+  }
+
   // Ödeme yöntemlerini al
   const { data: paymentMethods, error: paymentError } = await supabase
     .from("payment_settings")
@@ -193,10 +215,10 @@ async function showPaymentMethods(supabase: any, chat_id: number, product_id: st
     return
   }
 
-  // Kullanıcı durumunu güncelle
+  // Kullanıcı durumunu güncelle - adresi kaydet
   userStates[chat_id] = {
     state: "selecting_payment",
-    data: { product_id: product.id, product_name: product.name, price: product.price },
+    data: { ...userState.data, shipping_address: address },
   }
 
   // Ödeme yöntemlerini butonlar olarak göster
@@ -219,11 +241,11 @@ async function showPaymentMethods(supabase: any, chat_id: number, product_id: st
   })
 
   // Geri butonu ekle
-  keyboard.push([{ text: "◀️ İptal", callback_data: `product:${product_id}` }])
+  keyboard.push([{ text: "◀️ İptal", callback_data: `buy:${userState.data.product_id}` }])
 
   await sendMessage(
     chat_id,
-    `<b>${product.name}</b> ürününü satın almak için bir ödeme yöntemi seçin:\n\nTutar: ${product.price} ₺`,
+    `<b>${userState.data.product_name}</b> ürününü satın almak için bir ödeme yöntemi seçin:\n\nTutar: ${userState.data.price} ₺\nTeslimat Adresi: ${address}`,
     { inline_keyboard: keyboard },
   )
 }
@@ -274,7 +296,8 @@ async function showPaymentDetails(supabase: any, chat_id: number, payment_id: st
   let message = `<b>Ödeme Detayları</b>\n\n`
   message += `Ürün: ${userState.data.product_name}\n`
   message += `Tutar: ${userState.data.price} ₺\n`
-  message += `Ödeme Yöntemi: ${methodName}\n\n`
+  message += `Ödeme Yöntemi: ${methodName}\n`
+  message += `Teslimat Adresi: ${userState.data.shipping_address}\n\n`
   message += `<b>Ödeme Bilgileri:</b>\n`
   message += `${paymentMethod.account}\n`
   if (paymentMethod.account_name) {
@@ -309,6 +332,7 @@ async function confirmPayment(supabase: any, chat_id: number, user_id: string) {
         user_id,
         status: "pending",
         total_amount: userState.data.price,
+        shipping_address: userState.data.shipping_address,
       })
       .select()
       .single()
@@ -334,7 +358,7 @@ async function confirmPayment(supabase: any, chat_id: number, user_id: string) {
       user_id,
       amount: userState.data.price,
       payment_method: userState.data.payment_type,
-      payment_details: `Ürün: ${userState.data.product_name}`,
+      payment_details: `Ürün: ${userState.data.product_name}, Sipariş ID: ${order.id}`,
       status: "pending",
     })
 
@@ -409,6 +433,11 @@ async function listOrders(supabase: any, chat_id: number, user_id: string) {
     message += `Tarih: ${orderDate}\n`
     message += `Tutar: ${order.total_amount} ₺\n`
     message += `Durum: ${statusText}\n`
+    message += `Adres: ${order.shipping_address || "Belirtilmemiş"}\n`
+
+    if (order.tracking_number) {
+      message += `Takip No: ${order.tracking_number}\n`
+    }
 
     if (order.order_items && order.order_items.length > 0) {
       message += "Ürünler:\n"
@@ -513,6 +542,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: "User registration failed" })
     }
 
+    // Kullanıcı durumunu kontrol et - adres bekliyorsak
+    if (userStates[chat_id] && userStates[chat_id].state === "waiting_for_address") {
+      await showPaymentMethodsAfterAddress(supabase, chat_id, text)
+      return NextResponse.json({ status: "success" })
+    }
+
     // Komut işleme
     if (text === "/start") {
       await sendMessage(
@@ -528,12 +563,10 @@ export async function POST(request: Request) {
       await sendMessage(chat_id, "Sepet özelliği yakında eklenecektir.")
     } else if (text === "/orders" || text === "📦 Siparişlerim") {
       await listOrders(supabase, chat_id, dbUser.id)
-    } else if (text === "/balance" || text === "💰 Bakiyem") {
-      await sendMessage(chat_id, `Mevcut bakiyeniz: ${dbUser.balance} ₺`)
     } else if (text === "/help" || text === "❓ Yardım") {
       await sendMessage(
         chat_id,
-        "Yardım için lütfen yönetici ile iletişime geçin.\n\nKullanılabilir komutlar:\n/start - Botu başlat\n/menu - Ana menüyü göster\n/products - Ürünleri listele\n/cart - Sepeti göster\n/orders - Siparişlerimi göster\n/balance - Bakiyemi göster\n/help - Yardım",
+        "Yardım için lütfen yönetici ile iletişime geçin.\n\nKullanılabilir komutlar:\n/start - Botu başlat\n/menu - Ana menüyü göster\n/products - Ürünleri listele\n/cart - Sepeti göster\n/orders - Siparişlerimi göster\n/help - Yardım",
       )
     } else {
       await sendMessage(chat_id, "Anlaşılamayan komut. Lütfen menüden bir seçenek seçin veya /help yazın.")
