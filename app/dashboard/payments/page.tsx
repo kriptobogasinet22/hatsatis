@@ -1,95 +1,112 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { useEffect, useState, useCallback } from "react"
-import { toast } from "sonner"
-import { PaymentRequestTable } from "./components/payment-request-table"
-import { PaymentSettingsForm } from "./components/payment-settings-form"
-import { Skeleton } from "@/components/ui/skeleton"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+
+interface PaymentRequest {
+  id: string
+  user_id: string
+  amount: number
+  payment_method: string
+  status: string
+  created_at: string
+}
 
 export default function PaymentsPage() {
-  const [paymentRequests, setPaymentRequests] = useState<PaymentRequestWithCustomer[]>([])
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const supabase = createClientComponentClient()
 
   const fetchPaymentRequests = useCallback(async () => {
-    setIsLoading(true)
     try {
-      const response = await fetch("/api/payment-requests")
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const data: PaymentRequestWithCustomer[] = await response.json()
-      setPaymentRequests(data)
-    } catch (error) {
-      console.error("Failed to fetch payment requests:", error)
-      toast.error("Failed to fetch payment requests.")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+      setLoading(true)
+      const { data, error } = await supabase
+        .from("payment_requests")
+        .select("*")
+        .order("created_at", { ascending: false })
 
-  const fetchPaymentSettings = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch("/api/payment-settings")
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (error) {
+        throw error
       }
-      const data: PaymentSettings = await response.json()
-      setPaymentSettings(data)
+
+      setPaymentRequests(data || [])
     } catch (error) {
-      console.error("Failed to fetch payment settings:", error)
-      toast.error("Failed to fetch payment settings.")
+      console.error("Ödeme talepleri yüklenirken hata oluştu:", error)
+      alert("Ödeme talepleri yüklenirken hata oluştu.")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     fetchPaymentRequests()
-    fetchPaymentSettings()
-  }, [fetchPaymentRequests, fetchPaymentSettings]) // Eksik bağımlılıkları ekleyin
+  }, [fetchPaymentRequests])
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment Settings</CardTitle>
-          <CardDescription>Manage your payment settings here.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-10 w-[200px]" />
-          ) : (
-            <PaymentSettingsForm
-              initialData={paymentSettings || undefined}
-              onSuccess={() => {
-                fetchPaymentSettings()
-              }}
-            />
-          )}
-        </CardContent>
-      </Card>
-      <Separator />
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment Requests</CardTitle>
-          <CardDescription>View and manage payment requests.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div>
-              <Skeleton className="h-10 w-[200px]" />
-              <Skeleton className="h-10 w-[200px]" />
-              <Skeleton className="h-10 w-[200px]" />
-            </div>
-          ) : (
-            <PaymentRequestTable data={paymentRequests} />
-          )}
-        </CardContent>
-      </Card>
+    <div className="p-6">
+      <h1 className="mb-6 text-2xl font-bold">Ödemeler</h1>
+
+      <div className="rounded-lg border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">Ödeme Talepleri</h2>
+
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto">
+            <thead className="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+              <tr>
+                <th className="px-6 py-3 text-left">Kullanıcı ID</th>
+                <th className="px-6 py-3 text-left">Tutar</th>
+                <th className="px-6 py-3 text-left">Ödeme Yöntemi</th>
+                <th className="px-6 py-3 text-left">Durum</th>
+                <th className="px-6 py-3 text-left">Tarih</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center">
+                    Yükleniyor...
+                  </td>
+                </tr>
+              ) : paymentRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center">
+                    Henüz ödeme talebi bulunmuyor.
+                  </td>
+                </tr>
+              ) : (
+                paymentRequests.map((request) => (
+                  <tr key={request.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">{request.user_id.substring(0, 8)}...</td>
+                    <td className="px-6 py-4">₺{request.amount.toFixed(2)}</td>
+                    <td className="px-6 py-4">{request.payment_method}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                          request.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : request.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {request.status === "pending"
+                          ? "Beklemede"
+                          : request.status === "approved"
+                            ? "Onaylandı"
+                            : request.status === "rejected"
+                              ? "Reddedildi"
+                              : request.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">{new Date(request.created_at).toLocaleDateString("tr-TR")}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

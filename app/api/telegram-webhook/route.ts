@@ -134,8 +134,10 @@ export async function POST(request: Request) {
     }
 
     const message = update.message
-    const { chat_id, text, from } = message
-    // const user = message.from;
+    const chat_id = message.chat.id
+    const text = message.text || ""
+    const from = message.from
+
     // Kullanıcıyı kaydet/güncelle
     const dbUser = await registerUser(supabase, from)
 
