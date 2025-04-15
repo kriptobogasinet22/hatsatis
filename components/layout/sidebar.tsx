@@ -2,82 +2,48 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { LayoutDashboard, Package, Users, CreditCard, Truck, Settings, LogOut, ShoppingCart } from 'lucide-react'
+import { Home, Package, ShoppingCart, CreditCard, Truck, Users, Settings } from "lucide-react"
 
-const sidebarItems = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: <LayoutDashboard className="h-5 w-5" />,
-  },
-  {
-    title: "Ürünler",
-    href: "/dashboard/products",
-    icon: <Package className="h-5 w-5" />,
-  },
-  {
-    title: "Siparişler",
-    href: "/dashboard/orders",
-    icon: <ShoppingCart className="h-5 w-5"  />,
-  },
-  {
-    title: "Ödemeler",
-    href: "/dashboard/payments",
-    icon: <CreditCard className="h-5 w-5" />,
-  },
-  {
-    title: "Kargo Takibi",
-    href: "/dashboard/shipping",
-    icon: <Truck className="h-5 w-5" />,
-  },
-  {
-    title: "Kullanıcılar",
-    href: "/dashboard/users",
-    icon: <Users className="h-5 w-5" />,
-  },
-  {
-    title: "Ayarlar",
-    href: "/dashboard/settings",
-    icon: <Settings className="h-5 w-5" />,
-  },
+const navItems = [
+  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Ürünler", href: "/dashboard/products", icon: Package },
+  { name: "Siparişler", href: "/dashboard/orders", icon: ShoppingCart },
+  { name: "Ödeme Talepleri", href: "/dashboard/payment-requests", icon: CreditCard },
+  { name: "Kargo Takibi", href: "/dashboard/shipping", icon: Truck },
+  { name: "Kullanıcılar", href: "/dashboard/users", icon: Users },
+  { name: "Ayarlar", href: "/dashboard/settings", icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full flex-col border-r bg-background">
-      <div className="p-6">
-        <h2 className="text-2xl font-bold">Hat Satış</h2>
-        <p className="text-sm text-muted-foreground">Yönetim Paneli</p>
+    <aside className="flex h-screen w-64 flex-col border-r bg-white">
+      <div className="flex h-16 items-center border-b px-6">
+        <h2 className="text-lg font-semibold">Admin Panel</h2>
       </div>
-      <div className="flex-1 overflow-auto py-2">
-        <nav className="grid items-start px-4 text-sm font-medium">
-          {sidebarItems.map((item, index) => (
-            <Link
-              key={index}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-accent",
-                pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-              )}
-            >
-              {item.icon}
-              {item.title}
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="mt-auto p-4">
-        <Link
-          href="/logout"
-          className="flex w-full items-center gap-3 rounded-lg bg-primary px-3 py-2 text-primary-foreground"
-        >
-          <LogOut className="h-5 w-5" />
-          Çıkış Yap
-        </Link>
-      </div>
-    </div>
+      <nav className="flex-1 overflow-auto p-3">
+        <ul className="space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href
+            const Icon = item.icon
+
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
+                    isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  {item.name}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+    </aside>
   )
 }
