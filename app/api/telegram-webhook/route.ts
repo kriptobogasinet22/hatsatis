@@ -552,7 +552,7 @@ export async function POST(request: Request) {
     if (text === "/start") {
       await sendMessage(
         chat_id,
-        `Merhaba <b>${from.first_name || "Değerli Müşterimiz"}</b>! 👋\n\nŞapka Satış Sistemine hoş geldiniz. Aşağıdaki menüden istediğiniz işlemi seçebilirsiniz.`,
+        `Merhaba <b>${from.first_name || "Değerli Müşterimiz"}</b>! 👋\n\nAçık Hat Satış Sistemine hoş geldiniz. Aşağıdaki menüden istediğiniz işlemi seçebilirsiniz.`,
         mainMenuKeyboard,
       )
     } else if (text === "/menu" || text === "Ana Menü") {
